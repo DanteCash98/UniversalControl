@@ -8,12 +8,19 @@ using Mirror;
 public class UILobby : MonoBehaviour
 {
     public static UILobby instance;
+
+    [Header("Host Join")]
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private TMP_InputField joinMatchInput;
     [SerializeField] private Button joinButton;
     [SerializeField] private Button hostButton;
     [SerializeField] private Canvas lobbyCanvas;
 
+    [Header("Lobby")]
+    [SerializeField] Transform UIPlayerParent;
+    [SerializeField] GameObject UIPlayerPrefab;
+    [SerializeField] TMP_Text matchIDText;
+    [SerializeField] GameObject StartGameButton;
 
     private void Start()
     {
@@ -28,11 +35,14 @@ public class UILobby : MonoBehaviour
         Player.localPlayer.HostGame();
     }
 
-    public void HostSuccess(bool success)
+    public void HostSuccess(bool success, string matchID)
     {
         if(success)
         {
             lobbyCanvas.enabled = true;
+            SpawnPlayerUIPrefab(Player.localPlayer);
+            matchIDText.text = matchID;
+            StartGameButton.SetActive(true);
         }
         else
         {
@@ -48,14 +58,16 @@ public class UILobby : MonoBehaviour
         joinButton.interactable = false;
         hostButton.interactable = false;
 
-        Player.localPlayer.JoinGame(joinMatchInput.text);
+        Player.localPlayer.JoinGame(joinMatchInput.text.ToUpper());
     }
     
-    public void JoinSuccess(bool success)
+    public void JoinSuccess(bool success, string matchID)
     {
         if(success)
         {
             lobbyCanvas.enabled = true;
+            SpawnPlayerUIPrefab(Player.localPlayer);
+            matchIDText.text = matchID;
         }
         else
         {
@@ -63,5 +75,17 @@ public class UILobby : MonoBehaviour
             joinButton.interactable = true;
             hostButton.interactable = true;
         }
+    }
+
+    public  void SpawnPlayerUIPrefab(Player player) 
+    {
+        GameObject newUIPlayer = Instantiate(UIPlayerPrefab, UIPlayerParent);
+        newUIPlayer.GetComponent<UIPlayer>().SetPlayer(player);
+        newUIPlayer.transform.SetSiblingIndex(player.playerIndex - 1);
+    }
+
+    public void StartGame()
+    {
+        Player.localPlayer.StartGame();
     }
 }

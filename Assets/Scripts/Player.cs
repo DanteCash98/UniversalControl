@@ -1,24 +1,32 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Mirror;
 
 public class Player : NetworkBehaviour
 {
     public static Player localPlayer;
     [SyncVar] public string matchID;
+    [SyncVar] public int playerIndex;
 
     NetworkMatchChecker networkMatchChecker;
 
     private void Start()
     {
+        networkMatchChecker = GetComponent<NetworkMatchChecker>();
+
         if(isLocalPlayer)
         {
             localPlayer = this;
         }
-
-        networkMatchChecker = GetComponent<NetworkMatchChecker>();
+        else
+        {
+            UILobby.instance.SpawnPlayerUIPrefab(this);
+        }
     }
+
+#region HostGameCalls
     public void HostGame()
     {
         string matchID = MatchMaker.instance.GetRandomMatchID();
@@ -29,53 +37,90 @@ public class Player : NetworkBehaviour
     [Command]
     private void CmdHostGame(string _matchID) {
         matchID = _matchID;
-        if(MatchMaker.instance.HostGame(_matchID, gameObject))
+        if(MatchMaker.instance.HostGame(_matchID, gameObject, out playerIndex))
         {
             Debug.Log($"Game hosted <color=green>successfully</color>");
 
             networkMatchChecker.matchId = _matchID.ToGuid();
-            RpcHostGame(true, _matchID);
+            TargetHostGame(true, _matchID, playerIndex);
         }
         else
         {
             Debug.LogWarning($"Game hosted <color=red>unsuccessfully</color>");
-            RpcHostGame(false, _matchID);
+            TargetHostGame(false, _matchID, playerIndex);
         }
     }
 
     [TargetRpc]
-    private void RpcHostGame(bool success, string _matchID)
+    private void TargetHostGame(bool success, string _matchID, int _playerIndex)
     {
+        matchID = _matchID;
+        playerIndex = _playerIndex;
         Debug.Log($"match ID: {matchID} == {_matchID}");
-        UILobby.instance.HostSuccess(success);
+        UILobby.instance.HostSuccess(success, matchID);
     }
 
     public void JoinGame(string _matchID)
     {
         CmdJoinGame(_matchID);
     }
+#endregion
 
+#region JoinGameCalls
     [Command]
-    private void CmdJoinGame(string _matchID) {
+    private void CmdJoinGame(string _matchID) 
+    {
         matchID = _matchID;
-        if(MatchMaker.instance.JoinGame(_matchID, gameObject))
+        if(MatchMaker.instance.JoinGame(_matchID, gameObject, out playerIndex))
         {
-            Debug.Log($"Game Joined <color=green>successfully</color>");
+            Debug.Log($"Game Join attempt <color=green>successfully</color>");
 
             networkMatchChecker.matchId = _matchID.ToGuid();
-            RpcJoinGame(true, _matchID);
+            TargetJoinGame(true, _matchID, playerIndex);
         }
         else
         {
-            Debug.LogWarning($"Game Joined <color=red>unsuccessfully</color>");
-            RpcJoinGame(false, _matchID);
+            Debug.LogWarning($"Game join attempt <color=red>unsuccessful</color>");
+            TargetJoinGame(false, _matchID, playerIndex);
         }
     }
 
     [TargetRpc]
-    private void RpcJoinGame(bool success, string _matchID)
+    private void TargetJoinGame(bool success, string _matchID, int _playerIndex)
     {
+        matchID = _matchID;
+        playerIndex = _playerIndex;
         Debug.Log($"match ID: {matchID} == {_matchID}");
-        UILobby.instance.JoinSuccess(success);
+        UILobby.instance.JoinSuccess(success, _matchID);
     }
+#endregion
+
+#region StartGameCalls
+    public void StartGame()
+    {
+        CmdStartGame();
+    }
+
+    [Command]
+    private void CmdStartGame() 
+    {
+        MatchMaker.instance.StartGame(matchID);
+        Debug.Log($"<color=green>Game Beginning...</color>");
+
+        TargetStartGame();
+    }
+
+    public void StartMatch()
+    {
+        TargetStartGame();
+    }
+
+    [TargetRpc]
+    private void TargetStartGame()
+    {
+        Debug.Log($"Match with ID: {matchID} Beginnning");
+        SceneManager.LoadScene(2, LoadSceneMode.Additive);
+    }
+#endregion
+
 }
