@@ -9,35 +9,51 @@ public class Player : NetworkBehaviour
     public static Player localPlayer;
     [SyncVar] public string matchID;
     [SyncVar] public int playerIndex;
+    GameObject lobbyPlayerUI;
 
     NetworkMatchChecker networkMatchChecker;
 
-    private void Start()
+    private void Awake()
     {
         networkMatchChecker = GetComponent<NetworkMatchChecker>();
+    }
 
+    public override void OnStartClient()
+    {
         if(isLocalPlayer)
         {
             localPlayer = this;
         }
         else
         {
-            UILobby.instance.SpawnPlayerUIPrefab(this);
+            lobbyPlayerUI = UILobby.instance.SpawnPlayerUIPrefab(this);
         }
     }
 
+    public override void OnStopClient()
+    {
+        Debug.Log($"Client stop");
+        ClientDisconnect();
+    }
+
+    public override void OnStopServer()
+    {
+        Debug.Log($"Client stop on server");
+        ServerDisconnect();
+    }
+
 #region HostGameCalls
-    public void HostGame()
+    public void HostGame(bool isPublic)
     {
         string matchID = MatchMaker.instance.GetRandomMatchID();
-        CmdHostGame(matchID);
+        CmdHostGame(matchID, isPublic);
 
     }
 
     [Command]
-    private void CmdHostGame(string _matchID) {
+    private void CmdHostGame(string _matchID, bool isPublic) {
         matchID = _matchID;
-        if(MatchMaker.instance.HostGame(_matchID, gameObject, out playerIndex))
+        if(MatchMaker.instance.HostGame(_matchID, gameObject, isPublic, out playerIndex))
         {
             Debug.Log($"Game hosted <color=green>successfully</color>");
 
@@ -95,6 +111,38 @@ public class Player : NetworkBehaviour
     }
 #endregion
 
+#region SearchGame
+    public void SearchGame()
+    {
+        CmdSearchGame();
+    }
+    [Command]
+    public void CmdSearchGame()
+    {
+        if(MatchMaker.instance.SearchGame(gameObject, out playerIndex, out matchID))
+        {
+            Debug.Log($"Game found <color=green>successfully</color>");
+
+            networkMatchChecker.matchId = matchID.ToGuid();
+            TargetSearchGame(true, matchID, playerIndex);
+        }
+        else
+        {
+            Debug.LogWarning($"Game found <color=red>unsuccessful</color>");
+            TargetSearchGame(false, matchID, playerIndex);
+        }
+    }
+
+    [TargetRpc]
+    public void TargetSearchGame(bool success, string _matchID, int _playerIndex)
+    {
+        playerIndex = _playerIndex;
+        matchID = _matchID;
+        Debug.Log($"match ID: {matchID} == {_matchID}");
+        UILobby.instance.SearchSuccess(success, _matchID);
+    }
+#endregion
+
 #region StartGameCalls
     public void StartGame()
     {
@@ -105,7 +153,7 @@ public class Player : NetworkBehaviour
     private void CmdStartGame() 
     {
         MatchMaker.instance.StartGame(matchID);
-        Debug.Log($"<color=green>Game Beginning...</color>");
+        Debug.Log($"<color=yellow>Game Beginning...</color>");
 
         TargetStartGame();
     }
@@ -123,4 +171,37 @@ public class Player : NetworkBehaviour
     }
 #endregion
 
+#region DisconnectGame
+    public void DisconnectGame()
+    {
+        CmdDisconnectGame();
+    }
+
+    [Command]
+    public void CmdDisconnectGame()
+    {
+        ServerDisconnect();
+    }
+
+    private void ServerDisconnect()
+    {
+        MatchMaker.instance.PlayerDisconnect(this, matchID);
+        networkMatchChecker.matchId = string.Empty.ToGuid();
+        RpcDisconnectGame();
+    }
+
+    [ClientRpc]
+    public void RpcDisconnectGame()
+    {
+        ClientDisconnect();
+    }
+
+    private void ClientDisconnect()
+    {
+        if(lobbyPlayerUI != null)
+        {
+            Destroy(lobbyPlayerUI);
+        }
+    }
+#endregion
 }

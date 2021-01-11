@@ -9,7 +9,11 @@ using Mirror;
 [System.Serializable]
 public class Match 
 {
-    public string matchID;
+    public string matchID = string.Empty;
+
+    public bool isPublic = false;
+    public bool isMatchInLobby = true;
+    public bool isMatchfull = false;
     public SyncListGameObject players = new SyncListGameObject();
 
     public Match(string matchID, GameObject player)
@@ -41,16 +45,20 @@ public class MatchMaker : NetworkBehaviour
         instance = this;
     }
 
-    public bool HostGame(string _matchID, GameObject _player, out int playerIndex)
+    public bool HostGame(string _matchID, GameObject _player, bool isPublic, out int playerIndex)
     {
         playerIndex = -1;
         if(!matchIDs.Contains(_matchID))
         {
             matchIDs.Add(_matchID);
-            matches.Add( new Match(_matchID, _player) );
+            Match match = new Match(_matchID, _player);
+            match.isPublic = isPublic;
+            match.isMatchInLobby = true;
+            matches.Add(match);
             playerIndex = 1;
             return true;
-        } else 
+        } 
+        else 
         {
             Debug.LogError($"Match ID {_matchID} already exists");
             return false;
@@ -68,15 +76,37 @@ public class MatchMaker : NetworkBehaviour
                 {
                     matches[i].players.Add(_player);
                     playerIndex = matches[i].players.Count;
+                    matches[i].isMatchfull = (matches[i].players.Count == 12);
                     break;
                 }
             }
             return true;
-        } else 
+        } 
+        else 
         {
             Debug.LogError($"Match ID {_matchID} does not exist");
             return false;
         }
+    }
+
+    public bool SearchGame(GameObject _player, out int playerIndex, out string matchID)
+    {
+        playerIndex = -1;
+        matchID = string.Empty;
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            if(matches[i].isPublic && !matches[i].isMatchfull && matches[i].isMatchInLobby)
+            {
+                matchID = matches[i].matchID;
+                if(JoinGame(matchID, _player, out playerIndex))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public void StartGame(string _matchID)
@@ -96,6 +126,7 @@ public class MatchMaker : NetworkBehaviour
                     turnManager.AddPlayer(_player);
                     _player.StartMatch();
                 }
+                matches[i].isMatchInLobby = false;
                 break;
             }
         }
@@ -119,6 +150,28 @@ public class MatchMaker : NetworkBehaviour
         Debug.Log($"Randomly generated match ID: {_id}");
 
         return _id;
+    }
+
+    public void PlayerDisconnect(Player player, string _matchID)
+    {
+        for (int i = 0; i < matches.Count; i++)
+        {
+            if(matches[i].matchID == _matchID)
+            {
+                int playerIndex = matches[i].players.IndexOf(player.gameObject);
+                matches[i].players.RemoveAt(playerIndex);
+                Debug.Log($"Player Disconnected from match ID: {_matchID} | {matches[i].players.Count}");
+
+                if(matches[i].players.Count == 0)
+                {
+                    Debug.Log($"<color=yellow>No more player in matchID {_matchID}</color>");
+                    matches.RemoveAt(i);
+                    matchIDs.Remove(_matchID);
+                }
+
+                break;
+            }
+        }
     }
 }
 
