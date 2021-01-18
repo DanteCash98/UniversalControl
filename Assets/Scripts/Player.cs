@@ -10,6 +10,7 @@ public class Player : NetworkBehaviour
     [SyncVar] public string matchID;
     [SyncVar] public int playerIndex;
     GameObject lobbyPlayerUI;
+    GameObject lobbyPlayerChatUI;
 
     NetworkMatchChecker networkMatchChecker;
 
@@ -41,6 +42,8 @@ public class Player : NetworkBehaviour
         Debug.Log($"Client stop on server");
         ServerDisconnect();
     }
+
+
 
 #region HostGameCalls
     public void HostGame(bool isPublic)
@@ -202,6 +205,9 @@ public class Player : NetworkBehaviour
         {
             Destroy(lobbyPlayerUI);
         }
+        
+        matchID = string.Empty;
+        gameObject.GetComponent<ChatBehaviour>().HideChatUI();
     }
 #endregion
 }

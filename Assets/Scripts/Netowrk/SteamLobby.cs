@@ -11,10 +11,10 @@ public class SteamLobby : MonoBehaviour
     protected Callback<LobbyEnter_t> lobbyEntered;
     
     private const string HostAddressKey = "HostAddress";
-    private MyNetworkManager networkManager;
+    private NetworkManager networkManager;
     private void Start()
     {
-        networkManager = GetComponent<MyNetworkManager>();
+        networkManager = GetComponent<NetworkManager>();
 
         if(!SteamManager.Initialized) { return; }
 

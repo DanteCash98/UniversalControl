@@ -20,6 +20,7 @@ public class UILobby : MonoBehaviour
     [SerializeField] GameObject UIPlayerPrefab;
     [SerializeField] TMP_Text matchIDText;
     [SerializeField] GameObject startGameButton;
+    [SerializeField] GameObject chatUIWindowPrefab;
     GameObject lobbyPlayerUI;
 
     private bool searching = false;
@@ -98,7 +99,6 @@ public class UILobby : MonoBehaviour
         GameObject newUIPlayer = Instantiate(UIPlayerPrefab, UIPlayerParent);
         newUIPlayer.GetComponent<UIPlayer>().SetPlayer(player);
         newUIPlayer.transform.SetSiblingIndex(player.playerIndex - 1);
-
         return newUIPlayer;
     }
 
