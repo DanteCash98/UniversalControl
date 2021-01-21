@@ -169,6 +169,7 @@ public class Player : NetworkBehaviour
     [TargetRpc]
     private void TargetStartGame()
     {
+        gameObject.GetComponent<ChatBehaviour>().HideChatUI();
         Debug.Log($"Match with ID: {matchID} Beginnning");
         SceneManager.LoadScene(2, LoadSceneMode.Additive);
     }

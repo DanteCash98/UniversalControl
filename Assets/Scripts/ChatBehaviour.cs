@@ -63,8 +63,10 @@ public class ChatBehaviour : NetworkBehaviour
     [Command]
     private void CmdSendMessage(string message)
     {
+        int index = Player.localPlayer.playerIndex;
         // @TO-DO: Validate
-        RpcHandleMessage($"[player {Player.localPlayer.playerIndex}]: {message}");
+
+        RpcHandleMessage($"<color=green>[player {index}]</color>: {message}");
     }
 
     [ClientRpc]
