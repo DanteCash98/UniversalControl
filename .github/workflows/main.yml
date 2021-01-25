@@ -1,37 +1,108 @@
-name: CI
+name: Circle CI
 on:
-        push:
-                branches:
-                        - release
+  pull_request: {}
+  push: { branches: [master, release] }
+
+env:
+  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  UNITY_VERSION: 2019.4.17f1
+  PROJECT_PATH: /
+
 jobs:
-  build:
+  checklicense:
+    name: Check for Unity License
     runs-on: ubuntu-latest
-    container: unityci/editor:2019.4.17f1-windows-mono-0
+    outputs:
+      is_unity_license_set: ${{ steps.checklicense_job.outputs.is_unity_license_set }}
+    steps: 
+      - name: Check whether Unity Activation requests should be done
+        id: checklicense_job
+        run: |
+          echo "Skip activation job: ${{ env.UNITY_LICENSE != '' }}"
+          echo "::set-output name=is_unity_license_set::${{ env.UNITY_LICENSE != '' }}"
+  requestManualActivationFile:
+    needs: [checklicense]
+    if: needs.checklicense.outputs.is_unity_license_set == 'false'
+    name: Request manual activation file
+    runs-on: ubuntu-latest
     steps:
-        - name: Checkout Project
-          uses: actions/checkout@v1
+      # Request manual activation file
+      - name: Request manual activation file
+        id: getManualLicenseFile
+        uses: game-ci/unity-request-activation-file@v2.0-alpha-1
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+      
+      # Upload artifact
+      - name: Expose as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.getManualLicenseFile.outputs.filePath }}
+          path: ${{ steps.getManualLicenseFile.outputs.filePath }}
 
-        - name: Decrypt the license file
-          run: openssl aes-256-cbc -d -in .github/Unity_v2019.x.ulf.enc -k ${{ secrets.UNITY_LICENSE_DECRYPT_KEY }} >> .github/Unity_v2019.x.ulf
-        
-        # Activate unity
-        - name: Activate Unity
-          run: /opt/Unity/Editor/Unity -quit -batchmode -nographics -silent-crashes -logFile -manualLicenseFile .github/Unity_v2019.x.ulf || exit 0
-        
-        # Build Windows and OSX
-        - name: Build Windows Player
-          run: /opt/Unity/Editor/Unity -quit -batchmode -nographics -silent-crashes -logFile -projectPath . -buildWindows64Player ./bin-win64/UCapp.exe
-        - name: Build OSX Player
-          run: /opt/Unity/Editor/Unity -quit -batchmode -nographics -silent-crashes -logFile -projectPath . -buildOSXUniversalPlayer ./bin-osx/UCapp.app      
-        
-        - name: Archive Windows Build
-          uses: actions/upload-artifact@v1
-          with:
-            name: CISampleWin64Binary
-            path: ./bin-win64
+  activateAndThenReturnLicense:
+    needs: [checklicense]
+    if: needs.checklicense.outputs.is_unity_license_set == 'true'
+    name: Activate and Return License
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
 
-        - name: Archive Mac Build
-          uses: actions/upload-artifact@v1
-          with:
-            name: CISampleOSXBinary
-            path: ./bin-osx
+      # Return license (NOTE: May not work!)
+      - name: Verify and Activate License
+        uses: game-ci/unity-activate@v1.3
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+
+  test:
+    needs: [activateAndThenReturnLicense]
+    if: needs.checklicense.outputs.is_unity_license_set == 'true'
+    name: Run EditMode and PlayMode Tests
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout repo
+      - uses: actions/checkout@v2
+        with:
+          lfs: true
+
+      # Cache
+      - uses: actions/cache@v1.1.0
+        with:
+          path: test-project/Library
+          key: Library-test-project-${{ matrix.targetPlatform }}
+          restore-keys: |
+            Library-UniversalControl
+            Library
+      - uses: game-ci/unity-test-runner@v2.0-alpha-2
+        id: testRunner
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: all
+          customParameters: "-nographics"
+
+      - uses: actions/upload-artifact@v1
+        with:
+          name: Test Results (All modes)
+          path: ${{ steps.testRunner.outputs.artifactsPath }}
+
+  linter:
+    needs: [test]
+    name: Lint code base
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout repo
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      # Perform Linting
+      - name: Perform Linting
+        uses: github/super-linter@v3
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_CSHARP: true
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
