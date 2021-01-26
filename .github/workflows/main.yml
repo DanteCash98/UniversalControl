@@ -18,7 +18,7 @@ jobs:
       id: getManualLicenseFile
       uses: webbertakken/unity-request-manual-activation-file@v1.1
       with:
-        unityVersion: ${{ UNITY_VERSION }}
+        unityVersion: ${{ env.UNITY_VERSION }}
     # Upload artifact (Unity_v2019.4.17f.alf)
     - name: Expose as artifact
       uses: actions/upload-artifact@v1
