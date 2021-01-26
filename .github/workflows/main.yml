@@ -4,65 +4,34 @@ on:
   push: { branches: [master, release] }
 
 env:
-  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE_DECRYPT_KEY }}
   UNITY_VERSION: 2019.4.17f1
   PROJECT_PATH: /
 
 jobs:
-#  checklicense:
-#    name: Check for Unity License
-#    runs-on: ubuntu-latest
-#    outputs:
-#      is_unity_license_set: ${{ steps.checklicense_job.outputs.is_unity_license_set }}
-#    steps: 
-#      - name: Check whether Unity Activation requests should be done
-#        id: checklicense_job
-#        run: |
-#          echo "Skip activation job: ${{ env.UNITY_LICENSE != '' }}"
-#          echo "::set-output name=is_unity_license_set::${{ env.UNITY_LICENSE != '' }}"
-#  requestManualActivationFile:
-#    needs: [checklicense]
-#    if: needs.checklicense.outputs.is_unity_license_set == 'false'
-#    name: Request manual activation file
-#    runs-on: ubuntu-latest
-#    steps:
-      # Request manual activation file
-#      - name: Request manual activation file
-#        id: getManualLicenseFile
-#        uses: game-ci/unity-request-activation-file@v2.0-alpha-1
-#        with:
-#          unityVersion: ${{ env.UNITY_VERSION }}
-      
-      # Upload artifact
- #     - name: Expose as artifact
- #       uses: actions/upload-artifact@v2
- #       with:
- #         name: ${{ steps.getManualLicenseFile.outputs.filePath }}
- #         path: ${{ steps.getManualLicenseFile.outputs.filePath }}
-
-  activateAndThenReturnLicense:
-#   if: needs.checklicense.outputs.is_unity_license_set == 'true'
-    name: Activate and Return License
+  activation:
+    name: Request manual activation file 🔑
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v1
+    # Request manual activation file
+    - name: Request manual activation file
+      id: getManualLicenseFile
+      uses: webbertakken/unity-request-manual-activation-file@v1.1
+      with:
+        unityVersion: ${{ UNITY_VERSION }}
+    # Upload artifact (Unity_v2019.4.17f.alf)
+    - name: Expose as artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.getManualLicenseFile.outputs.filePath }}
+        path: ${{ steps.getManualLicenseFile.outputs.filePath }}
+    # Activate
+    - name: Unity - Activate
+      uses: game-ci/unity-activate@v1.3
 
-      # Return license (NOTE: May not work!)
-      - name: Verify and Activate License
-        uses: game-ci/unity-activate@v1.3
-
-      # Decrypt the license file
-      - run: openssl aes-256-cbc -d -in .circleci/Unity_v2018.x.ulf.enc -k ${UNITY_LICENSE_DECRYPT_KEY} >> .circleci/Unity_v2018.x.ulf
-      
-      # Activate unity
-      - run: /opt/Unity/Editor/Unity -quit -batchmode -nographics -silent-crashes -logFile -manualLicenseFile .circleci/Unity_v2018.x.ulf || exit 0
-      
-        env:
-          UNITY_LICENSE: .circleci/Unity_v2018.x.ulf
-
+  
   test:
-    needs: [activateAndThenReturnLicense]
+    needs: [activation]
 #   if: needs.checklicense.outputs.is_unity_license_set == 'true'
     name: Run EditMode and PlayMode Tests
     runs-on: ubuntu-latest
